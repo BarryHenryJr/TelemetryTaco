@@ -3,6 +3,7 @@
 # TelemetryTaco Development Startup Script
 # This script starts all required services for local development
 
+# Use set -e for strict error handling, but we'll handle expected failures explicitly
 set -e
 
 # Colors for output
@@ -27,14 +28,18 @@ docker-compose up -d db redis
 echo -e "${YELLOW}⏳ Waiting for PostgreSQL to be ready...${NC}"
 timeout=30
 counter=0
+# docker-compose exec may fail if container isn't ready yet, so disable set -e for this loop
+set +e
 until docker-compose exec -T db pg_isready -U postgres > /dev/null 2>&1; do
     sleep 1
     counter=$((counter + 1))
     if [ $counter -ge $timeout ]; then
         echo -e "${RED}❌ PostgreSQL failed to start within $timeout seconds${NC}"
+        set -e  # Re-enable set -e before exiting
         exit 1
     fi
 done
+set -e  # Re-enable set -e after the loop
 echo -e "${GREEN}✅ PostgreSQL is ready${NC}"
 
 # Step 2: Check if backend .env exists
@@ -42,13 +47,23 @@ if [ ! -f "backend/.env" ]; then
     echo -e "${YELLOW}⚠️  backend/.env not found. Creating from template...${NC}"
     
     # Generate a secure SECRET_KEY for development
-    # Use Python to generate a Django-compatible secret key
+    # Use Python to generate a Django-compatible secret key, or openssl as fallback
+    SECRET_KEY=""
     if command -v python3 &> /dev/null; then
         SECRET_KEY=$(python3 -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())" 2>/dev/null || \
-                     python3 -c "import secrets; print(secrets.token_urlsafe(50))")
-    else
-        # Fallback: generate a random string if Python is not available
-        SECRET_KEY=$(openssl rand -hex 32 2>/dev/null || date +%s | sha256sum | base64 | head -c 50)
+                     python3 -c "import secrets; print(secrets.token_urlsafe(50))" 2>/dev/null || true)
+    fi
+    
+    # If Python failed or is not available, try openssl
+    if [ -z "$SECRET_KEY" ] && command -v openssl &> /dev/null; then
+        SECRET_KEY=$(openssl rand -base64 50 | tr -d '\n' | head -c 50)
+    fi
+    
+    # If both methods failed, exit with an error
+    if [ -z "$SECRET_KEY" ]; then
+        echo -e "${RED}❌ Cannot generate SECRET_KEY: Python3 or OpenSSL is required${NC}"
+        echo -e "${YELLOW}   Please install Python3 or OpenSSL and try again${NC}"
+        exit 1
     fi
     
     cat > backend/.env << EOF

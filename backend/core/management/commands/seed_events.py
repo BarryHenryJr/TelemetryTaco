@@ -53,17 +53,17 @@ class Command(BaseCommand):
         events_to_create = []
         for _ in range(count):
             # Weighted random selection of event name
-            event_name = random.choices(EVENT_NAMES, weights=EVENT_WEIGHTS)[0]
+            event_name = random.choices(EVENT_NAMES, weights=EVENT_WEIGHTS)[0]  # nosec B311
 
             # Generate random timestamp within the last 24 hours
-            random_seconds = random.randint(0, 24 * 60 * 60)
+            random_seconds = random.randint(0, 24 * 60 * 60)  # nosec B311
             timestamp = start_time + timedelta(seconds=random_seconds)
 
             # Generate realistic properties based on event type
             properties = self._generate_properties(fake, event_name)
 
             # Select a random distinct_id from the pool
-            distinct_id = random.choice(distinct_ids)
+            distinct_id = random.choice(distinct_ids)  # nosec B311
 
             events_to_create.append(
                 Event(
@@ -89,35 +89,35 @@ class Command(BaseCommand):
             properties = {
                 "url": fake.url(),
                 "path": fake.uri_path(),
-                "referrer": fake.url() if random.random() > 0.3 else None,
+                "referrer": fake.url() if random.random() > 0.3 else None,  # nosec B311
                 "user_agent": fake.user_agent(),
-                "viewport_width": random.randint(320, 2560),
-                "viewport_height": random.randint(568, 1440),
+                "viewport_width": random.randint(320, 2560),  # nosec B311
+                "viewport_height": random.randint(568, 1440),  # nosec B311
             }
         elif event_name == "button_click":
             properties = {
                 "button_id": fake.word(),
                 "button_text": fake.sentence(nb_words=3),
                 "page_url": fake.url(),
-                "element_class": fake.word() if random.random() > 0.5 else None,
+                "element_class": fake.word() if random.random() > 0.5 else None,  # nosec B311
             }
         elif event_name == "checkout_success":
             properties = {
                 "order_id": fake.uuid4(),
-                "total_amount": round(random.uniform(10.0, 500.0), 2),
+                "total_amount": round(random.uniform(10.0, 500.0), 2),  # nosec B311
                 "currency": "USD",
-                "items_count": random.randint(1, 10),
-                "payment_method": random.choice(["credit_card", "paypal", "apple_pay"]),
+                "items_count": random.randint(1, 10),  # nosec B311
+                "payment_method": random.choice(["credit_card", "paypal", "apple_pay"]),  # nosec B311
             }
         elif event_name == "error":
             properties = {
-                "error_type": random.choice(
+                "error_type": random.choice(  # nosec B311
                     ["TypeError", "ReferenceError", "NetworkError", "ValidationError"]
                 ),
                 "error_message": fake.sentence(),
-                "stack_trace": fake.text(max_nb_chars=200) if random.random() > 0.5 else None,
+                "stack_trace": fake.text(max_nb_chars=200) if random.random() > 0.5 else None,  # nosec B311
                 "page_url": fake.url(),
-                "line_number": random.randint(1, 1000) if random.random() > 0.3 else None,
+                "line_number": random.randint(1, 1000) if random.random() > 0.3 else None,  # nosec B311
             }
 
         return properties

@@ -210,11 +210,18 @@ class TelemetryTaco:
             return  # No threads to wait for
         
         # Track start time for total timeout calculation
-        start_time = time.time() if timeout > 0 else None
+        # Only track start_time when timeout > 0; when timeout == 0, we use None (no timeout)
+        if timeout > 0:
+            start_time: float = time.time()
+        else:
+            # timeout == 0 means no timeout, so we don't need to track start time
+            start_time = None
         
         for thread in threads_to_wait:
             # Calculate remaining timeout for this thread
-            if timeout > 0 and start_time is not None:
+            if timeout > 0:
+                # start_time is guaranteed to be float (not None) when timeout > 0
+                assert start_time is not None, "start_time should not be None when timeout > 0"
                 elapsed = time.time() - start_time
                 remaining_timeout = timeout - elapsed
                 
@@ -227,7 +234,8 @@ class TelemetryTaco:
                         f"{remaining_count} threads still active."
                     )
             else:
-                remaining_timeout = None if timeout == 0 else timeout
+                # timeout == 0 means no timeout
+                remaining_timeout = None
             
             # Join with remaining timeout (or None if no timeout specified)
             thread.join(timeout=remaining_timeout)

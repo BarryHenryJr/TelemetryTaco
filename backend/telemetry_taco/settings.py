@@ -228,3 +228,27 @@ CACHES = {
 # Rate Limiting Configuration
 # django-ratelimit uses the default cache backend (Redis) for rate limit tracking
 RATELIMIT_USE_CACHE = "default"
+
+# Environment detection for default rate limits
+# Use ENVIRONMENT variable (development/staging/production) instead of DEBUG
+# This is safer than using DEBUG, which should never be True in production
+ENVIRONMENT = env("ENVIRONMENT", default="production").lower()
+
+# Configurable rate limits for API endpoints
+# Format: "number/period" where period is s (second), m (minute), h (hour), d (day)
+# Examples: "1000/h" = 1000 per hour, "100/m" = 100 per minute
+# Defaults vary by environment: development has higher limits for testing
+if ENVIRONMENT == "development":
+    DEFAULT_RATE_LIMIT_CAPTURE_EVENT = "10000/h"
+    DEFAULT_RATE_LIMIT_LIST_EVENTS = "1000000/h"  # Very high limit for development
+    DEFAULT_RATE_LIMIT_GET_INSIGHTS = "1000/h"
+else:
+    # Production/staging defaults (more restrictive)
+    DEFAULT_RATE_LIMIT_CAPTURE_EVENT = "1000/h"
+    DEFAULT_RATE_LIMIT_LIST_EVENTS = "10000/h"
+    DEFAULT_RATE_LIMIT_GET_INSIGHTS = "300/h"
+
+# Allow explicit override via environment variables (takes precedence over environment-based defaults)
+RATE_LIMIT_CAPTURE_EVENT = env("RATE_LIMIT_CAPTURE_EVENT", default=DEFAULT_RATE_LIMIT_CAPTURE_EVENT)
+RATE_LIMIT_LIST_EVENTS = env("RATE_LIMIT_LIST_EVENTS", default=DEFAULT_RATE_LIMIT_LIST_EVENTS)
+RATE_LIMIT_GET_INSIGHTS = env("RATE_LIMIT_GET_INSIGHTS", default=DEFAULT_RATE_LIMIT_GET_INSIGHTS)

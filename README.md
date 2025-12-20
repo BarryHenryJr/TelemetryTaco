@@ -131,16 +131,21 @@ cd backend
 poetry env use python3.11  # Required if you have Python 3.14+
 poetry install
 
-# 4. Create .env file with database credentials
+# 4. Generate a secure SECRET_KEY and create .env file
+# First, generate a secure SECRET_KEY:
+python3 -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'
+
+# Copy the generated key, then create .env file (replace YOUR_SECRET_KEY with the generated key)
 # Check your Docker container credentials first:
 # docker-compose exec db env | grep POSTGRES
 cat > .env << 'EOF'
 DEBUG=True
-SECRET_KEY=django-insecure-dev-only-change-me-in-production
+SECRET_KEY=YOUR_SECRET_KEY
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/telemetry_taco
 REDIS_URL=redis://localhost:6379/0
 ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
 EOF
+# Replace YOUR_SECRET_KEY with the generated key from above
 # Update DATABASE_URL if your Docker container uses different credentials
 
 # 5. Test database connection
@@ -217,16 +222,21 @@ poetry env use python3.11
 poetry install
 
 # Set up environment variables
-# Create .env file in backend/ directory
+# First, generate a secure SECRET_KEY:
+python3 -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'
+
+# Create .env file in backend/ directory (replace YOUR_SECRET_KEY with the generated key)
 cat > .env << 'EOF'
 DEBUG=True
-SECRET_KEY=django-insecure-dev-only-change-me-in-production
+SECRET_KEY=YOUR_SECRET_KEY
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/telemetry_taco
 REDIS_URL=redis://localhost:6379/0
 ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
 EOF
+# Replace YOUR_SECRET_KEY with the generated key from above
 
 # Note: If your Docker PostgreSQL uses different credentials, update DATABASE_URL accordingly.
+# Important: The SECRET_KEY must be at least 50 characters and cannot use example/insecure values.
 # Check your Docker container: docker-compose exec db env | grep POSTGRES
 
 # Start database and Redis (from project root)

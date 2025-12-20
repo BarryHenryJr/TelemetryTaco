@@ -59,7 +59,7 @@ class InsightDataPoint(Schema):
 
 
 @router.post("/capture", response=StatusResponse)
-@ratelimit(key="ip", rate="1000/h", method="POST", block=True)
+@ratelimit(key="ip", rate=settings.RATE_LIMIT_CAPTURE_EVENT, method="POST", block=True)
 def capture_event(request, event: EventSchema) -> StatusResponse:
     """
     Capture event endpoint.
@@ -67,7 +67,15 @@ def capture_event(request, event: EventSchema) -> StatusResponse:
     Accepts event data and offloads it to Celery for async processing.
     Returns immediately with 200 OK to ensure low latency.
 
-    Rate limited to 1000 requests per hour per IP address to prevent abuse.
+    **Rate Limiting:**
+    - Default: 1000 requests per hour per IP address
+    - Configurable via RATE_LIMIT_CAPTURE_EVENT environment variable
+    - Format: "number/period" (e.g., "1000/h", "100/m", "5000/d")
+    - Set to "0" to disable rate limiting for this endpoint
+
+    **Note:** This limit is applied per IP address. For high-volume use cases,
+    consider configuring a higher limit or implementing API key-based authentication
+    for higher limits.
     """
     # Convert Pydantic model to dict for Celery task
     # Using model_dump() for Pydantic v2 compatibility (replaces deprecated dict())
@@ -83,7 +91,7 @@ def capture_event(request, event: EventSchema) -> StatusResponse:
 @router.get("/events", response=list[EventResponseSchema])
 @ratelimit(
     key="ip",
-    rate="1000000/h" if settings.DEBUG else "10000/h",  # Very high limit in development
+    rate=settings.RATE_LIMIT_LIST_EVENTS,
     method="GET",
     block=True,
 )
@@ -93,7 +101,10 @@ def list_events(request, limit: int = 100):
 
     Returns the most recent events ordered by timestamp (descending).
 
-    Rate limited to 300 requests per hour per IP address.
+    **Rate Limiting:**
+    - Default: 10,000 requests per hour per IP address
+    - Configurable via RATE_LIMIT_LIST_EVENTS environment variable
+    - Format: "number/period" (e.g., "10000/h", "100/m", "50000/d")
     """
     events = Event.objects.order_by("-timestamp")[:limit]
     # Django Ninja's ModelSchema will handle serialization automatically
@@ -102,7 +113,7 @@ def list_events(request, limit: int = 100):
 
 
 @router.get("/insights", response=list[InsightDataPoint])
-@ratelimit(key="ip", rate="300/h", method="GET", block=True)
+@ratelimit(key="ip", rate=settings.RATE_LIMIT_GET_INSIGHTS, method="GET", block=True)
 def get_insights(request, lookback_minutes: int = 60):
     """
     Get event insights endpoint.
@@ -116,7 +127,10 @@ def get_insights(request, lookback_minutes: int = 60):
     Returns:
         List of data points with time (HH:MM format) and count
 
-    Rate limited to 300 requests per hour per IP address.
+    **Rate Limiting:**
+    - Default: 300 requests per hour per IP address
+    - Configurable via RATE_LIMIT_GET_INSIGHTS environment variable
+    - Format: "number/period" (e.g., "300/h", "50/m", "1000/d")
     """
     # Calculate the cutoff time
     cutoff_time = timezone.now() - timedelta(minutes=lookback_minutes)
