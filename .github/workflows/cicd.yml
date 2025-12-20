@@ -195,6 +195,8 @@ jobs:
 
       - name: Run Django check
         working-directory: ./backend
+        env:
+          SECRET_KEY: ci-test-secret-key-for-django-check-only-not-for-production-use-this-is-a-long-key-to-meet-validation-requirements
         run: poetry run python manage.py check
 
   # Security Scanning
@@ -316,7 +318,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/telemetry_taco_test
           REDIS_URL: redis://localhost:6379/0
-          SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: ci-test-secret-key-for-testing-only-not-for-production-use-this-is-a-long-key-to-meet-validation-requirements
           DEBUG: "False"
         run: poetry run python manage.py migrate
 
@@ -325,7 +327,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/telemetry_taco_test
           REDIS_URL: redis://localhost:6379/0
-          SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: ci-test-secret-key-for-testing-only-not-for-production-use-this-is-a-long-key-to-meet-validation-requirements
           DEBUG: "False"
         run: poetry run python manage.py test --verbosity=2
 
@@ -353,7 +355,7 @@ jobs:
 
       - name: Test Docker image
         run: |
-          docker run --rm telemetry-taco-backend:test python manage.py check
+          docker run --rm -e SECRET_KEY="ci-test-secret-key-for-docker-build-test-only-not-for-production-use-this-is-a-long-key-to-meet-validation-requirements" telemetry-taco-backend:test python manage.py check
 
   # Docker Compose Integration Test
   docker-compose-test:
@@ -381,12 +383,16 @@ jobs:
           docker compose up -d backend
 
       - name: Run migrations in container
+        env:
+          SECRET_KEY: ci-test-secret-key-for-docker-compose-test-only-not-for-production-use-this-is-a-long-key-to-meet-validation-requirements
         run: |
-          docker compose exec -T backend python manage.py migrate
+          docker compose exec -T -e SECRET_KEY="$SECRET_KEY" backend python manage.py migrate
 
       - name: Run tests in container
+        env:
+          SECRET_KEY: ci-test-secret-key-for-docker-compose-test-only-not-for-production-use-this-is-a-long-key-to-meet-validation-requirements
         run: |
-          docker compose exec -T backend python manage.py test --verbosity=2
+          docker compose exec -T -e SECRET_KEY="$SECRET_KEY" backend python manage.py test --verbosity=2
 
       - name: Health check
         run: |

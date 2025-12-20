@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "eslint . --max-warnings 0",
-    "preview": "vite preview"
+    "type-check": "tsc --noEmit",
+    "preview": "vite preview",
+    "validate:all": "pnpm install && pnpm lint && pnpm type-check"
   },
   "dependencies": {
     "react": "^18.2.0",
