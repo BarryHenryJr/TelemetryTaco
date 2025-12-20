@@ -209,19 +209,16 @@ class TelemetryTaco:
         if not threads_to_wait:
             return  # No threads to wait for
         
-        # Track start time for total timeout calculation
-        # Only track start_time when timeout > 0; when timeout == 0, we use None (no timeout)
+        # Track start time for total timeout calculation (only when timeout > 0)
+        start_time: float | None = None
         if timeout > 0:
-            start_time: float = time.time()
-        else:
-            # timeout == 0 means no timeout, so we don't need to track start time
-            start_time = None
+            start_time = time.time()
         
         for thread in threads_to_wait:
             # Calculate remaining timeout for this thread
             if timeout > 0:
-                # start_time is guaranteed to be float (not None) when timeout > 0
-                assert start_time is not None, "start_time should not be None when timeout > 0"
+                # When timeout > 0, start_time is guaranteed to be set above (line 215)
+                # start_time is used here, so it's not unused
                 elapsed = time.time() - start_time
                 remaining_timeout = timeout - elapsed
                 

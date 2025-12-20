@@ -134,22 +134,82 @@ cd ..
 echo -e "${GREEN}▶️  Starting frontend dev server...${NC}"
 echo -e "${YELLOW}   Frontend will run in the foreground. Press Ctrl+C to stop.${NC}\n"
 
+# Helper function to safely kill a process by PID file with validation
+# Args: PID file path, process name for logging, command pattern to verify, process name pattern
+safe_kill_process() {
+    local pid_file=$1
+    local process_name=$2
+    local command_pattern=$3
+    local process_name_pattern=$4
+    
+    if [ ! -f "$pid_file" ]; then
+        return 0
+    fi
+    
+    local pid=$(cat "$pid_file")
+    
+    # Validate PID is numeric
+    if ! [[ "$pid" =~ ^[0-9]+$ ]]; then
+        echo -e "${YELLOW}⚠️  Invalid PID in $pid_file: $pid${NC}"
+        rm -f "$pid_file"
+        return 1
+    fi
+    
+    # Check if process exists
+    if ! kill -0 "$pid" 2>/dev/null; then
+        # Process doesn't exist, clean up PID file
+        rm -f "$pid_file"
+        return 0
+    fi
+    
+    # Validate the process matches expected pattern before killing
+    local process_cmd=$(ps -p "$pid" -o command= 2>/dev/null || echo "")
+    local process_comm=$(ps -p "$pid" -o comm= 2>/dev/null || echo "")
+    
+    if [ -z "$process_cmd" ]; then
+        # Process doesn't exist (race condition)
+        rm -f "$pid_file"
+        return 0
+    fi
+    
+    # Verify command and process name match expected patterns
+    local cmd_matches=false
+    local name_matches=false
+    
+    if echo "$process_cmd" | grep -q "$command_pattern"; then
+        cmd_matches=true
+    fi
+    
+    if [ -n "$process_name_pattern" ]; then
+        if echo "$process_comm" | grep -qiE "$process_name_pattern"; then
+            name_matches=true
+        fi
+    else
+        name_matches=true  # If no pattern specified, consider it a match
+    fi
+    
+    # Only kill if validations pass
+    if [ "$cmd_matches" = true ] && [ "$name_matches" = true ]; then
+        if kill "$pid" 2>/dev/null; then
+            echo -e "${GREEN}✅ Stopped $process_name (PID: $pid)${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  PID $pid doesn't match expected $process_name process. Skipping for safety.${NC}"
+    fi
+    
+    rm -f "$pid_file"
+}
+
 # Function to cleanup on exit
+# Uses variables from outer scope (PROJECT_ROOT, BACKEND_PID_FILE, CELERY_PID_FILE)
 cleanup() {
     echo -e "\n${YELLOW}🛑 Stopping services...${NC}"
-    # Use the same absolute paths defined above
-    local project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    local backend_pid_file="${project_root}/.backend.pid"
-    local celery_pid_file="${project_root}/.celery.pid"
     
-    if [ -f "${backend_pid_file}" ]; then
-        kill $(cat "${backend_pid_file}") 2>/dev/null || true
-        rm -f "${backend_pid_file}"
-    fi
-    if [ -f "${celery_pid_file}" ]; then
-        kill $(cat "${celery_pid_file}") 2>/dev/null || true
-        rm -f "${celery_pid_file}"
-    fi
+    # Use the variables already defined in outer scope (lines 111-113)
+    # This avoids duplication and ensures consistency
+    safe_kill_process "${BACKEND_PID_FILE}" "Django backend" "manage.py runserver" "python"
+    safe_kill_process "${CELERY_PID_FILE}" "Celery worker" "celery.*worker" "(python|celery)"
+    
     echo -e "${GREEN}✅ Services stopped${NC}"
 }
 
