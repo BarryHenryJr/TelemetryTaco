@@ -24,6 +24,8 @@
     "format:backend": "cd backend && poetry run ruff format .",
     "format:check:backend": "cd backend && poetry run ruff format --check .",
     "check:backend": "cd backend && poetry run python manage.py check",
+    "security:backend": "cd backend && poetry run bandit -r . -c bandit.yaml",
+    "security:backend:json": "cd backend && poetry run bandit -r . -f json -o bandit-report.json -c bandit.yaml",
     "validate:backend": "pnpm lint:backend && pnpm format:check:backend && pnpm check:backend",
     "validate:frontend": "pnpm --filter ./frontend lint && pnpm --filter ./frontend type-check",
     "validate:all": "pnpm validate:backend && pnpm validate:frontend"

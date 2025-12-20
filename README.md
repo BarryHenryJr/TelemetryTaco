@@ -587,6 +587,8 @@ The project includes a GitHub Actions CI/CD pipeline (`.github/workflows/cicd.ym
 - Runs CodeQL security analysis for Python and JavaScript
 - Validates code quality (linting, formatting, type checking)
 - Runs tests for both backend and frontend
+- Validates Docker build (builds backend image and runs `python manage.py check`)
+- Runs Docker Compose integration tests (full stack test with PostgreSQL, Redis, and backend services)
 - Ensures all checks pass before merging
 
 All pull requests must pass CI/CD validation before merging.

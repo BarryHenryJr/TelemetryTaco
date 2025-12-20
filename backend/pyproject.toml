@@ -20,6 +20,7 @@ faker = "^24.0.0"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.4.0"
+bandit = {extras = ["toml"], version = "^1.7.0"}
 
 [tool.ruff]
 line-length = 100
