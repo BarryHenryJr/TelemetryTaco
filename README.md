@@ -33,18 +33,11 @@
 
 ```mermaid
 graph LR
-    A[SDK] -->|HTTP POST| B[API Server]
-    B -->|Queue Task| C[Redis]
-    C -->|Consume| D[Celery Worker]
-    D -->|Write| E[PostgreSQL]
-    E -->|Query| F[Frontend Dashboard]
-
-    style A fill:#f9a825
-    style B fill:#f9a825
-    style C fill:#dc2626
-    style D fill:#f9a825
-    style E fill:#336791
-    style F fill:#61dafb
+    SDK[SDK] -->|"HTTP POST"| APIServer["API Server"]
+    APIServer -->|"Queue Task"| Redis[Redis]
+    Redis -->|Consume| CeleryWorker["Celery Worker"]
+    CeleryWorker -->|Write| PostgreSQL[PostgreSQL]
+    PostgreSQL -->|Query| FrontendDashboard["Frontend Dashboard"]
 ```
 
 ### Component Overview
@@ -69,7 +62,7 @@ After initial setup, start everything with one command:
 **First time setup** (make scripts executable):
 
 ```bash
-chmod +x start.sh stop.sh
+chmod +x start.sh stop.sh restart-backend.sh seed.sh clear-rate-limit.sh
 ```
 
 **Then start everything:**
@@ -188,11 +181,31 @@ After initial setup, use these commands for daily development:
 pnpm dev:frontend   # Frontend only
 pnpm dev:backend    # Backend only
 pnpm dev:worker     # Celery worker only
-pnpm services       # Docker services only
+pnpm services       # Start Docker services (PostgreSQL & Redis)
+pnpm services:stop  # Stop Docker services
+
+# Restart services
+pnpm restart:backend # or: ./restart-backend.sh (restarts Django backend only)
 
 # Database operations
 pnpm migrate        # Run migrations
 make migrate        # Alternative
+
+# Seed database with sample data
+pnpm seed           # or: ./seed.sh
+pnpm seed:clean     # or: ./seed.sh --clean (cleans existing data first)
+
+# Code quality and validation
+pnpm lint:backend   # Lint backend code (ruff check)
+pnpm lint:frontend  # Lint frontend code (eslint)
+pnpm format:backend # Format backend code (ruff format)
+pnpm security:backend # Run security scan (bandit)
+pnpm validate:backend   # Full backend validation (lint + format check + Django check)
+pnpm validate:frontend # Full frontend validation (lint + type-check)
+pnpm validate:all   # Validate both backend and frontend
+
+# Utility scripts
+./clear-rate-limit.sh # Clear Redis rate limit cache (useful after changing rate limits)
 
 # Stop services
 ./stop.sh           # or: pnpm stop  # or: make stop
@@ -204,7 +217,7 @@ make help
 **Note**: On first run, make the scripts executable:
 
 ```bash
-chmod +x start.sh stop.sh
+chmod +x start.sh stop.sh restart-backend.sh seed.sh clear-rate-limit.sh
 ```
 
 ### Local Development
@@ -277,6 +290,20 @@ pnpm dev
 ```
 
 The frontend will be available at `http://localhost:5173` and will automatically proxy API requests to the backend.
+
+### Database Seeding
+
+To populate the database with sample historical event data for testing and development:
+
+```bash
+# Seed database with historical events
+pnpm seed           # or: ./seed.sh
+
+# Clean existing events and seed fresh data
+pnpm seed:clean     # or: ./seed.sh --clean
+```
+
+The seed command generates realistic event data with timestamps spanning the past 7 days, useful for testing the dashboard and insights features.
 
 ### Using the SDK
 
@@ -451,9 +478,11 @@ When to migrate to ClickHouse:
 
 ### API Endpoints
 
+All API endpoints are rate-limited per IP address. Rate limits are configurable via environment variables and vary by environment (development has higher limits for testing).
+
 #### `POST /api/capture`
 
-Capture a new telemetry event.
+Capture a new telemetry event. Events are queued asynchronously via Celery and return immediately.
 
 **Request Body**:
 
@@ -476,13 +505,46 @@ Capture a new telemetry event.
 }
 ```
 
+**Rate Limiting**:
+
+- **Production Default**: 1,000 requests per hour per IP address
+- **Development Default**: 10,000 requests per hour per IP address
+- **Configuration**: Set `RATE_LIMIT_CAPTURE_EVENT` environment variable (format: `"number/period"`, e.g., `"1000/h"`, `"100/m"`, `"5000/d"`)
+- **Disable**: Set to `"0"` to disable rate limiting for this endpoint
+
 #### `GET /api/events?limit=100`
 
 List recent events (ordered by timestamp, descending).
 
+**Query Parameters**:
+
+- `limit` (optional): Maximum number of events to return (default: 100)
+
+**Response**: `200 OK` - Array of event objects
+
+**Rate Limiting**:
+
+- **Production Default**: 10,000 requests per hour per IP address
+- **Development Default**: 1,000,000 requests per hour per IP address
+- **Configuration**: Set `RATE_LIMIT_LIST_EVENTS` environment variable (format: `"number/period"`, e.g., `"10000/h"`, `"100/m"`, `"50000/d"`)
+- **Disable**: Set to `"0"` to disable rate limiting for this endpoint
+
 #### `GET /api/insights?lookback_minutes=60`
 
-Get aggregated event counts grouped by minute.
+Get aggregated event counts grouped by minute for the specified lookback period.
+
+**Query Parameters**:
+
+- `lookback_minutes` (optional): Number of minutes to look back from now (default: 60)
+
+**Response**: `200 OK` - Array of data points with `time` (HH:MM format) and `count`
+
+**Rate Limiting**:
+
+- **Production Default**: 300 requests per hour per IP address
+- **Development Default**: 1,000 requests per hour per IP address
+- **Configuration**: Set `RATE_LIMIT_GET_INSIGHTS` environment variable (format: `"number/period"`, e.g., `"300/h"`, `"50/m"`, `"1000/d"`)
+- **Disable**: Set to `"0"` to disable rate limiting for this endpoint
 
 ### SDK Reference
 
@@ -507,6 +569,41 @@ See [`.cursor/rules/generalguidelines.mdc`](.cursor/rules/generalguidelines.mdc)
 - Frontend development standards (React + TypeScript)
 - Backend development standards (Django + Django Ninja)
 - Code quality and testing requirements
+
+### Code Quality & Validation
+
+Before submitting code, run validation commands to ensure quality:
+
+```bash
+# Validate backend (linting, formatting, Django checks)
+pnpm validate:backend
+
+# Validate frontend (linting, type checking)
+pnpm validate:frontend
+
+# Validate entire project
+pnpm validate:all
+```
+
+The project uses:
+
+- **Backend**: `ruff` for linting and formatting, Django's `check` command for configuration validation, `bandit` for security scanning
+- **Frontend**: `eslint` for linting, TypeScript compiler for type checking
+
+### CI/CD
+
+The project includes a GitHub Actions CI/CD pipeline (`.github/workflows/cicd.yml`) that automatically:
+
+- Runs CodeQL security analysis for Python and JavaScript
+- Validates code quality (linting, formatting, type checking)
+- Runs tests for both backend and frontend
+- Validates Docker build (builds backend image and runs `python manage.py check` to verify the image)
+  - For pull requests: Docker build validation runs twice (once in `docker-build` job, once in `docker-build-validation` job)
+  - For pushes: Docker build validation runs once in the `docker-build` job
+- Runs Docker Compose integration tests (full stack test with PostgreSQL, Redis, and backend services)
+- Ensures all checks pass before merging
+
+All pull requests must pass CI/CD validation before merging.
 
 ### Troubleshooting
 
@@ -599,8 +696,8 @@ If you see "Failed to fetch" errors in the browser:
 ### Infrastructure
 
 - **Docker Compose** - Local development environment
-- **PostgreSQL** - Primary data store
-- **Redis** - Task queue and caching
+- **PostgreSQL 16** - Primary data store with JSONB support
+- **Redis 7** - Task queue and caching
 
 ---
 
