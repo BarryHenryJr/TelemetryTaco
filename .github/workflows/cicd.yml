@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main, develop]
 
+# Concurrency control: cancel in-progress runs when a new push/PR update occurs
+# This ensures only the latest code is tested, saving CI resources
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   PYTHON_VERSION: "3.11"
   POSTGRES_VERSION: "16"
@@ -16,6 +22,7 @@ jobs:
   codeql-analysis:
     name: CodeQL Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       actions: read
       contents: read
@@ -99,6 +106,7 @@ jobs:
   lint:
     name: Code Quality Checks
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       issues: write
@@ -209,6 +217,7 @@ jobs:
   security:
     name: Security Scanning
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       issues: write
@@ -359,6 +368,7 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16
@@ -436,6 +446,7 @@ jobs:
   docker-build:
     name: Docker Build Test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -462,6 +473,7 @@ jobs:
   docker-compose-test:
     name: Docker Compose Integration Test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -512,6 +524,7 @@ jobs:
   docker-build-validation:
     name: Docker Build Validation
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     if: github.event_name == 'pull_request'
     needs: [lint, test, security, docker-build]
     steps:

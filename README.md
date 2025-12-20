@@ -62,7 +62,7 @@ After initial setup, start everything with one command:
 **First time setup** (make scripts executable):
 
 ```bash
-chmod +x start.sh stop.sh
+chmod +x start.sh stop.sh restart-backend.sh seed.sh clear-rate-limit.sh
 ```
 
 **Then start everything:**
@@ -181,7 +181,11 @@ After initial setup, use these commands for daily development:
 pnpm dev:frontend   # Frontend only
 pnpm dev:backend    # Backend only
 pnpm dev:worker     # Celery worker only
-pnpm services       # Docker services only
+pnpm services       # Start Docker services (PostgreSQL & Redis)
+pnpm services:stop  # Stop Docker services
+
+# Restart services
+pnpm restart:backend # or: ./restart-backend.sh (restarts Django backend only)
 
 # Database operations
 pnpm migrate        # Run migrations
@@ -195,9 +199,13 @@ pnpm seed:clean     # or: ./seed.sh --clean (cleans existing data first)
 pnpm lint:backend   # Lint backend code (ruff check)
 pnpm lint:frontend  # Lint frontend code (eslint)
 pnpm format:backend # Format backend code (ruff format)
+pnpm security:backend # Run security scan (bandit)
 pnpm validate:backend   # Full backend validation (lint + format check + Django check)
 pnpm validate:frontend # Full frontend validation (lint + type-check)
 pnpm validate:all   # Validate both backend and frontend
+
+# Utility scripts
+./clear-rate-limit.sh # Clear Redis rate limit cache (useful after changing rate limits)
 
 # Stop services
 ./stop.sh           # or: pnpm stop  # or: make stop
@@ -209,7 +217,7 @@ make help
 **Note**: On first run, make the scripts executable:
 
 ```bash
-chmod +x start.sh stop.sh
+chmod +x start.sh stop.sh restart-backend.sh seed.sh clear-rate-limit.sh
 ```
 
 ### Local Development
@@ -577,7 +585,7 @@ pnpm validate:all
 
 The project uses:
 
-- **Backend**: `ruff` for linting and formatting, Django's `check` command for configuration validation
+- **Backend**: `ruff` for linting and formatting, Django's `check` command for configuration validation, `bandit` for security scanning
 - **Frontend**: `eslint` for linting, TypeScript compiler for type checking
 
 ### CI/CD
