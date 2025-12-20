@@ -32,41 +32,48 @@ environ.Env.read_env(BASE_DIR / ".env")
 DEBUG = env("DEBUG", default=True)
 
 # SECURITY WARNING: keep the secret key used in production secret!
-# In production (DEBUG=False), SECRET_KEY must be explicitly set via environment variable.
-# No default is provided to prevent accidental deployment with insecure keys.
-if DEBUG:
-    # Development: Allow default for convenience, but warn if using default
-    SECRET_KEY = env("SECRET_KEY", default="django-insecure-dev-only-change-me-in-production")  # nosec B107
-    if SECRET_KEY == "django-insecure-dev-only-change-me-in-production":
-        import warnings
+# SECRET_KEY must be explicitly set via environment variable in ALL environments
+# (both development and production) to prevent accidental deployment with insecure keys.
+# No default value is provided as a security measure.
+if "SECRET_KEY" not in os.environ:
+    raise ValueError(
+        "SECRET_KEY must be explicitly set via environment variable. "
+        "This is required for security in both development and production environments.\n\n"
+        "To generate a secure secret key, run:\n"
+        "  python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'\n\n"
+        "Then add it to your .env file:\n"
+        "  SECRET_KEY=your-generated-secret-key-here\n\n"
+        "For local development, you can add this to backend/.env"
+    )
 
-        warnings.warn(
-            "Using default SECRET_KEY in development. Set SECRET_KEY environment variable for production.",
-            UserWarning,
-            stacklevel=2,
-        )
-else:
-    # Production: Require explicit SECRET_KEY, raise error if not set
-    # Check if SECRET_KEY is explicitly set in environment
-    if "SECRET_KEY" not in os.environ:
-        raise ValueError(
-            "SECRET_KEY must be explicitly set via environment variable in production. "
-            "Set the SECRET_KEY environment variable before setting DEBUG=False. "
-            "This is a security requirement to prevent accidental deployment with insecure keys."
-        )
+# Get the SECRET_KEY from environment
+SECRET_KEY = env("SECRET_KEY")
 
-    # Get the SECRET_KEY and validate it's not the insecure default
-    secret_key = env("SECRET_KEY")
-    if (
-        secret_key == "django-insecure-change-me-in-production"
-        or secret_key == "django-insecure-dev-only-change-me-in-production"
-    ):
-        raise ValueError(
-            "SECRET_KEY cannot use the default insecure value in production. "
-            "Generate a secure secret key and set it via the SECRET_KEY environment variable. "
-            "You can generate one using: python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'"
-        )
-    SECRET_KEY = secret_key
+# Validate that SECRET_KEY is not using any known insecure defaults
+# This prevents accidental use of example/insecure values
+insecure_defaults = [
+    "django-insecure-change-me-in-production",
+    "django-insecure-dev-only-change-me-in-production",
+    "changeme",
+    "secret",
+    "your-secret-key-here",
+]
+
+if SECRET_KEY in insecure_defaults:
+    raise ValueError(
+        f"SECRET_KEY cannot use the insecure default value '{SECRET_KEY}'. "
+        "Generate a secure secret key and set it via the SECRET_KEY environment variable.\n\n"
+        "To generate a secure secret key, run:\n"
+        "  python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'"
+    )
+
+# Additional validation: ensure SECRET_KEY has minimum length
+if len(SECRET_KEY) < 50:
+    raise ValueError(
+        "SECRET_KEY appears to be too short. Django secret keys should be at least 50 characters. "
+        "Generate a secure secret key using:\n"
+        "  python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'"
+    )
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "0.0.0.0"])
 
@@ -202,3 +209,20 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+
+# Cache Configuration (for rate limiting)
+# Uses Redis for rate limiting storage (separate DB from Celery)
+# django-redis provides robust Redis caching with connection pooling
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": env("REDIS_URL", default="redis://localhost:6379/1"),  # Use DB 1 for cache
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    }
+}
+
+# Rate Limiting Configuration
+# django-ratelimit uses the default cache backend (Redis) for rate limit tracking
+RATELIMIT_USE_CACHE = "default"

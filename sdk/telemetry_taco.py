@@ -1,6 +1,7 @@
 import threading
 import json
 import logging
+import time
 import urllib.request
 import urllib.error
 from typing import Any
@@ -186,7 +187,8 @@ class TelemetryTaco:
         sending their events. Use this before program exit to ensure no data loss.
         
         Args:
-            timeout: Maximum time to wait in seconds (None = wait indefinitely)
+            timeout: Maximum total time to wait in seconds (None = wait indefinitely)
+                    This is a total timeout across all threads, not per thread.
         
         Raises:
             TimeoutError: If timeout is exceeded and threads are still active
@@ -195,8 +197,29 @@ class TelemetryTaco:
         with self._threads_lock:
             threads_to_wait = list(self._active_threads)
         
+        # Track start time for total timeout calculation
+        start_time = time.time() if timeout is not None else None
+        
         for thread in threads_to_wait:
-            thread.join(timeout=timeout)
+            # Calculate remaining timeout for this thread
+            if timeout is not None and start_time is not None:
+                elapsed = time.time() - start_time
+                remaining_timeout = timeout - elapsed
+                
+                # If we've already exceeded the total timeout, raise immediately
+                if remaining_timeout <= 0:
+                    with self._threads_lock:
+                        remaining_count = len(self._active_threads)
+                    raise TimeoutError(
+                        f"Total timeout of {timeout}s exceeded. "
+                        f"{remaining_count} threads still active."
+                    )
+            else:
+                remaining_timeout = None
+            
+            # Join with remaining timeout (or None if no timeout specified)
+            thread.join(timeout=remaining_timeout)
+            
             if thread.is_alive():
                 # Count remaining active threads
                 with self._threads_lock:

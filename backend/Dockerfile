@@ -9,14 +9,15 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry (pinned version for supply-chain security)
+# Install Poetry (version range for security updates while maintaining compatibility)
 # Using pip install instead of curl-pipe pattern for integrity verification
 # pip automatically verifies package checksums from PyPI
-ENV POETRY_VERSION=1.8.3
+# Version range allows patch updates (1.8.x) for security fixes while preventing
+# breaking changes from minor/major version updates
 ENV POETRY_NO_INTERACTION=1
 ENV POETRY_VIRTUALENVS_CREATE=false
 ENV POETRY_CACHE_DIR=/opt/poetry-cache
-RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}" \
+RUN pip install --no-cache-dir "poetry>=1.8.3,<1.9.0" \
     && poetry --version
 
 # Configure Poetry: Don't create virtual environment, install dependencies to system

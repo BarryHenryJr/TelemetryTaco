@@ -4,6 +4,7 @@ from typing import Any
 from django.db.models import Count
 from django.db.models.functions import TruncMinute
 from django.utils import timezone
+from django_ratelimit.decorators import ratelimit
 from ninja import Router, Schema
 
 from core.models import Event
@@ -50,15 +51,19 @@ class InsightDataPoint(Schema):
 
 
 @router.post("/capture", response=StatusResponse)
+@ratelimit(key="ip", rate="1000/h", method="POST", block=True)
 def capture_event(request, event: EventSchema) -> StatusResponse:
     """
     Capture event endpoint.
 
     Accepts event data and offloads it to Celery for async processing.
     Returns immediately with 200 OK to ensure low latency.
+
+    Rate limited to 1000 requests per hour per IP address to prevent abuse.
     """
     # Convert Pydantic model to dict for Celery task
-    event_data = event.dict()
+    # Using model_dump() for Pydantic v2 compatibility (replaces deprecated dict())
+    event_data = event.model_dump()
 
     # Offload to Celery task asynchronously
     process_event_task.delay(event_data)
@@ -68,17 +73,21 @@ def capture_event(request, event: EventSchema) -> StatusResponse:
 
 
 @router.get("/events", response=list[EventResponseSchema])
+@ratelimit(key="ip", rate="300/h", method="GET", block=True)
 def list_events(request, limit: int = 100):
     """
     List recent events endpoint.
 
     Returns the most recent events ordered by timestamp (descending).
+
+    Rate limited to 300 requests per hour per IP address.
     """
     events = Event.objects.order_by("-timestamp")[:limit]
     return list(events)
 
 
 @router.get("/insights", response=list[InsightDataPoint])
+@ratelimit(key="ip", rate="300/h", method="GET", block=True)
 def get_insights(request, lookback_minutes: int = 60):
     """
     Get event insights endpoint.
@@ -91,6 +100,8 @@ def get_insights(request, lookback_minutes: int = 60):
 
     Returns:
         List of data points with time (HH:MM format) and count
+
+    Rate limited to 300 requests per hour per IP address.
     """
     # Calculate the cutoff time
     cutoff_time = timezone.now() - timedelta(minutes=lookback_minutes)
