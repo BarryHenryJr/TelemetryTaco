@@ -70,3 +70,11 @@ test: ## Run tests
 	@echo "🧪 Running tests..."
 	cd backend && poetry run python manage.py test
 	cd frontend && pnpm test || true
+
+seed: ## Seed database with historical event data
+	@echo "📊 Seeding database..."
+	cd backend && poetry run python manage.py seed_events
+
+seed-clean: ## Clean and seed database (deletes existing events first)
+	@echo "📊 Cleaning and seeding database..."
+	cd backend && poetry run python manage.py seed_events --clean

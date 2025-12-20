@@ -1,11 +1,12 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
+from django.conf import settings
 from django.db.models import Count
 from django.db.models.functions import TruncMinute
 from django.utils import timezone
 from django_ratelimit.decorators import ratelimit
-from ninja import Router, Schema
+from ninja import ModelSchema, Router, Schema
 
 from core.models import Event
 from core.tasks import process_event_task
@@ -21,19 +22,26 @@ class EventSchema(Schema):
     properties: dict[str, Any] = {}
 
 
-class EventResponseSchema(Schema):
-    """Pydantic schema for event response."""
+class EventResponseSchema(ModelSchema):
+    """Pydantic schema for event response using ModelSchema."""
 
-    id: int
-    distinct_id: str
-    event_name: str
-    properties: dict[str, Any]
-    timestamp: datetime
-    uuid: str
-    created_at: datetime
+    uuid: str  # Override UUIDField to serialize as string
+
+    class Meta:
+        model = Event
+        fields = [
+            "id",
+            "distinct_id",
+            "event_name",
+            "properties",
+            "timestamp",
+            "uuid",
+            "created_at",
+        ]
 
     @staticmethod
-    def resolve_uuid(obj):
+    def resolve_uuid(obj: Event) -> str:
+        """Convert UUID to string for serialization."""
         return str(obj.uuid)
 
 
@@ -73,7 +81,12 @@ def capture_event(request, event: EventSchema) -> StatusResponse:
 
 
 @router.get("/events", response=list[EventResponseSchema])
-@ratelimit(key="ip", rate="300/h", method="GET", block=True)
+@ratelimit(
+    key="ip",
+    rate="1000000/h" if settings.DEBUG else "10000/h",  # Very high limit in development
+    method="GET",
+    block=True,
+)
 def list_events(request, limit: int = 100):
     """
     List recent events endpoint.
@@ -83,6 +96,8 @@ def list_events(request, limit: int = 100):
     Rate limited to 300 requests per hour per IP address.
     """
     events = Event.objects.order_by("-timestamp")[:limit]
+    # Django Ninja's ModelSchema will handle serialization automatically
+    # The resolve_uuid method will convert UUID to string
     return list(events)
 
 

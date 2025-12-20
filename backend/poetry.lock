@@ -331,6 +331,21 @@ typing-extensions = {version = ">=4.6.0", markers = "python_version < \"3.13\""}
 test = ["pytest (>=6)"]
 
 [[package]]
+name = "faker"
+version = "24.14.1"
+description = "Faker is a Python package that generates fake data for you."
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "Faker-24.14.1-py3-none-any.whl", hash = "sha256:a5edba3aa17a1d689c8907e5b0cd1653079c2466a4807f083aa7b5f80a00225d"},
+    {file = "Faker-24.14.1.tar.gz", hash = "sha256:380a3697e696ae4fcf50a93a3d9e0286fab7dfbf05a9caa4421fa4727c6b1e89"},
+]
+
+[package.dependencies]
+python-dateutil = ">=2.4"
+
+[[package]]
 name = "kombu"
 version = "5.6.1"
 description = "Messaging library for Python."
@@ -832,4 +847,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11,<3.14"
-content-hash = "fd22b0316bcde9f4bfc27fef3cb1c0e65037b7a9128389589072bde8a6373752"
+content-hash = "cd048e3bc650e582ba1d3171837df39ed467c77d214ffb44afff527d8b581e5f"
