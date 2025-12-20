@@ -79,6 +79,9 @@ jobs:
         working-directory: ./backend
         run: poetry install --no-interaction --no-ansi
 
+      - name: Install Poetry export plugin
+        run: poetry self add poetry-plugin-export
+
       - name: Run Safety check
         working-directory: ./backend
         run: |
@@ -183,6 +186,7 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: false
+          load: true
           tags: telemetry-taco-backend:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -202,27 +206,27 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Start services with docker-compose
+      - name: Start services with docker compose
         run: |
-          docker-compose up -d db redis
+          docker compose up -d db redis
           sleep 10
 
       - name: Wait for services to be healthy
         run: |
-          timeout 60 bash -c 'until docker-compose ps | grep -q "healthy"; do sleep 2; done'
+          timeout 60 bash -c 'until docker compose ps | grep -q "healthy"; do sleep 2; done'
 
       - name: Build and start backend
         run: |
-          docker-compose build backend
-          docker-compose up -d backend
+          docker compose build backend
+          docker compose up -d backend
 
       - name: Run migrations in container
         run: |
-          docker-compose exec -T backend python manage.py migrate
+          docker compose exec -T backend python manage.py migrate
 
       - name: Run tests in container
         run: |
-          docker-compose exec -T backend python manage.py test --verbosity=2
+          docker compose exec -T backend python manage.py test --verbosity=2
 
       - name: Health check
         run: |
@@ -231,7 +235,7 @@ jobs:
 
       - name: Stop services
         if: always()
-        run: docker-compose down -v
+        run: docker compose down -v
 
   # Build and Push Docker Image (on main branch)
   docker-push:
