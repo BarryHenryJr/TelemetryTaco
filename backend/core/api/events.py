@@ -1,6 +1,8 @@
 from datetime import datetime
 
 from django.conf import settings
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django_ratelimit.decorators import ratelimit
 from ninja import Router
 from ninja.errors import HttpError
@@ -21,6 +23,34 @@ from core.services.ingestion import enqueue_events
 router = Router()
 
 
+def _parse_before_cursor(before: str | None) -> tuple[datetime, int | None] | None:
+    if before is None:
+        return None
+
+    timestamp_value = before
+    before_id = None
+
+    if "," in before:
+        timestamp_candidate, id_candidate = before.rsplit(",", maxsplit=1)
+        try:
+            before_id = int(id_candidate)
+        except ValueError as exc:
+            raise HttpError(
+                400,
+                "before cursor must be ISO 8601 timestamp or ISO 8601 timestamp,id",
+            ) from exc
+        timestamp_value = timestamp_candidate
+
+    parsed_before = parse_datetime(timestamp_value)
+    if parsed_before is None:
+        raise HttpError(400, "before cursor must be ISO 8601 timestamp or ISO 8601 timestamp,id")
+
+    if timezone.is_naive(parsed_before):
+        parsed_before = timezone.make_aware(parsed_before, timezone.get_current_timezone())
+
+    return parsed_before, before_id
+
+
 @router.post("/capture", response=StatusResponse)
 @ratelimit(key="ip", rate=settings.RATE_LIMIT_CAPTURE_EVENT, method="POST", block=True)
 def capture_event(request, event: EventCaptureSchema) -> StatusResponse:
@@ -37,11 +67,11 @@ def capture_event_batch(request, payload: EventBatchCaptureSchema) -> BatchStatu
 
 @router.get("/events", response=list[EventResponseSchema])
 @ratelimit(key="ip", rate=settings.RATE_LIMIT_LIST_EVENTS, method="GET", block=True)
-def list_events(request, limit: int = 100, before: datetime | None = None):
+def list_events(request, limit: int = 100, before: str | None = None):
     if limit < 1:
         raise HttpError(400, "limit must be greater than zero")
 
-    return list_recent_events(limit=limit, before=before)
+    return list_recent_events(limit=limit, before=_parse_before_cursor(before))
 
 
 @router.get("/insights", response=list[InsightDataPoint])
@@ -58,6 +88,10 @@ def liveness(request) -> HealthStatusResponse:
     return get_liveness_status()
 
 
-@router.get("/health/ready", response=HealthStatusResponse)
-def readiness(request) -> HealthStatusResponse:
-    return get_readiness_status()
+@router.get("/health/ready", response={200: HealthStatusResponse, 503: HealthStatusResponse})
+def readiness(request):
+    status = get_readiness_status()
+    if status.status != "ok":
+        return 503, status
+
+    return status

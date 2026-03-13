@@ -150,27 +150,23 @@ export interface components {
         };
         /** EventResponseSchema */
         EventResponseSchema: {
-            /** Uuid */
-            uuid: string;
-            /** ID */
-            id?: number | null;
-            /**
-             * Distinct Id
-             * @description User ID
-             */
+            /** Id */
+            id: number;
+            /** Distinct Id */
             distinct_id: string;
             /** Event Name */
             event_name: string;
-            /**
-             * Properties
-             * @description Flexible JSONB field for event properties
-             */
-            properties?: Record<string, never> | null;
+            /** Properties */
+            properties: {
+                [key: string]: unknown;
+            };
             /**
              * Timestamp
              * Format: date-time
              */
-            timestamp?: string;
+            timestamp: string;
+            /** Uuid */
+            uuid: string;
             /**
              * Created At
              * Format: date-time
@@ -326,6 +322,15 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthStatusResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

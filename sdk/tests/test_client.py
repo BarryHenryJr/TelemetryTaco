@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import json
 from unittest.mock import patch
 
@@ -66,3 +67,23 @@ def test_sdk_drop_oldest_policy_replaces_existing_item():
 
     assert isinstance(queued, QueuedEvent)
     assert queued.event_uuid == "second"
+
+
+def test_sdk_drops_non_serializable_batch_without_killing_worker():
+    requests = []
+
+    def fake_urlopen(request, timeout):
+        requests.append((request, timeout))
+        return FakeResponse()
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        client = TelemetryTaco(flush_interval=60, batch_size=10)
+        client.capture("user-1", "page_view", {"captured_at": datetime.now(timezone.utc)})
+        client.flush(timeout=2)
+        client.capture("user-2", "page_view", {"path": "/health"})
+        client.flush(timeout=2)
+        client.close(timeout=2)
+
+    assert len(requests) == 1
+    payload = json.loads(requests[0][0].data.decode("utf-8"))
+    assert payload["events"][0]["distinct_id"] == "user-2"

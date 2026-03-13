@@ -50,10 +50,6 @@ def _serialize_event(event: NormalizedEvent) -> dict[str, Any]:
     }
 
 
-def _chunked(items: list[NormalizedEvent], *, size: int) -> list[list[NormalizedEvent]]:
-    return [items[index : index + size] for index in range(0, len(items), size)]
-
-
 def enqueue_events(events: list[EventCaptureSchema]) -> int:
     if not events:
         raise HttpError(400, "events must contain at least one event")
@@ -65,9 +61,6 @@ def enqueue_events(events: list[EventCaptureSchema]) -> int:
         )
 
     normalized = [_normalize_event(event) for event in events]
-    chunks = _chunked(normalized, size=settings.MAX_CAPTURE_BATCH_SIZE)
-
-    for chunk in chunks:
-        process_event_batch_task.delay([_serialize_event(event) for event in chunk])
+    process_event_batch_task.delay([_serialize_event(event) for event in normalized])
 
     return len(normalized)

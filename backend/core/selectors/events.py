@@ -1,19 +1,28 @@
 from datetime import datetime, timedelta
 
 from django.conf import settings
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.db.models.functions import TruncMinute
 from django.utils import timezone
 
 from core.models import Event
 
+EventCursor = tuple[datetime, int | None]
 
-def list_recent_events(*, limit: int, before: datetime | None = None) -> list[Event]:
+
+def list_recent_events(*, limit: int, before: EventCursor | None = None) -> list[Event]:
     bounded_limit = min(limit, settings.MAX_EVENTS_LIMIT)
     queryset = Event.objects.order_by("-timestamp", "-id")
 
     if before is not None:
-        queryset = queryset.filter(timestamp__lt=before)
+        before_timestamp, before_id = before
+        if before_id is None:
+            queryset = queryset.filter(timestamp__lt=before_timestamp)
+        else:
+            queryset = queryset.filter(
+                Q(timestamp__lt=before_timestamp)
+                | Q(timestamp=before_timestamp, id__lt=before_id)
+            )
 
     return list(queryset[:bounded_limit])
 

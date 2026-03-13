@@ -161,7 +161,7 @@ The SDK batches events in a background worker, attaches `event_uuid` and `sent_a
     "path": "/"
   },
   "event_uuid": "optional-uuid",
-  "sent_at": "2026-03-13T18:00:00Z"
+  "sent_at": "YYYY-MM-DDTHH:MM:SSZ"
 }
 ```
 
@@ -186,9 +186,11 @@ Response:
 }
 ```
 
-### `GET /api/events?limit=100&before=2026-03-13T18:00:00Z`
+### `GET /api/events?limit=100&before=YYYY-MM-DDTHH:MM:SSZ,EVENT_ID`
 
 Returns recent events ordered by `timestamp desc, id desc`.
+For stable pagination, set `before` to the last event's `timestamp,id` pair.
+Plain ISO 8601 timestamps are still accepted for backward compatibility.
 
 ### `GET /api/insights?lookback_minutes=60`
 

@@ -135,6 +135,7 @@ class TelemetryTaco:
     def _run_worker(self) -> None:
         batch: list[QueuedEvent] = []
         last_flush = time.monotonic()
+        stop_requested = False
 
         while True:
             try:
@@ -144,22 +145,47 @@ class TelemetryTaco:
 
             if item is _STOP:
                 self._queue.task_done()
-                self._flush_batch(batch)
-                return
+                stop_requested = True
 
             if isinstance(item, QueuedEvent):
                 batch.append(item)
+
+            if self._flush_requested.is_set():
+                stop_requested = self._drain_queue(batch) or stop_requested
 
             should_flush = (
                 len(batch) >= self.batch_size
                 or (batch and time.monotonic() - last_flush >= self.flush_interval)
                 or (batch and self._flush_requested.is_set())
+                or (batch and stop_requested)
             )
 
             if should_flush:
                 self._flush_batch(batch)
                 batch = []
                 last_flush = time.monotonic()
+
+            if stop_requested and not batch:
+                return
+
+    def _drain_queue(self, batch: list[QueuedEvent]) -> bool:
+        stop_requested = False
+
+        while len(batch) < self.batch_size:
+            try:
+                item = self._queue.get_nowait()
+            except queue.Empty:
+                break
+
+            if item is _STOP:
+                self._queue.task_done()
+                stop_requested = True
+                break
+
+            if isinstance(item, QueuedEvent):
+                batch.append(item)
+
+        return stop_requested
 
     def _flush_batch(self, batch: list[QueuedEvent]) -> None:
         if not batch:
@@ -173,7 +199,12 @@ class TelemetryTaco:
 
     def _send_batch(self, batch: list[QueuedEvent]) -> None:
         payload = {"events": [event.as_dict() for event in batch]}
-        body = json.dumps(payload).encode("utf-8")
+        try:
+            body = json.dumps(payload).encode("utf-8")
+        except TypeError as exc:
+            logger.error("TelemetryTaco failed to serialize event batch: %s", exc, exc_info=True)
+            return
+
         request = urllib.request.Request(
             self.batch_url,
             data=body,

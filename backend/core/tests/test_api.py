@@ -1,10 +1,12 @@
 from datetime import timedelta
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
 from django.core.management import call_command
 from django.utils import timezone
 
+from core.api.schemas import HealthStatusResponse
 from core.models import Event
 
 
@@ -123,7 +125,7 @@ def test_events_endpoint_caps_limit_and_supports_before_filter(client, settings)
     limited = client.get("/api/events?limit=999")
     before_filtered = client.get(
         "/api/events",
-        data={"limit": 5, "before": newest.timestamp.isoformat()},
+        data={"limit": 5, "before": f"{newest.timestamp.isoformat()},{newest.id}"},
     )
 
     assert limited.status_code == 200
@@ -131,6 +133,56 @@ def test_events_endpoint_caps_limit_and_supports_before_filter(client, settings)
     assert limited.json()[0]["id"] == newest.id
     assert before_filtered.status_code == 200
     assert [event["id"] for event in before_filtered.json()] == [middle.id, oldest.id]
+
+
+@pytest.mark.django_db
+def test_events_endpoint_supports_stable_cursor_for_same_timestamp_rows(client):
+    shared_timestamp = timezone.now()
+    older = Event.objects.create(
+        distinct_id="older",
+        event_name="page_view",
+        timestamp=shared_timestamp - timedelta(minutes=1),
+    )
+    same_timestamp_lower_id = Event.objects.create(
+        distinct_id="same-timestamp-lower-id",
+        event_name="page_view",
+        timestamp=shared_timestamp,
+    )
+    same_timestamp_higher_id = Event.objects.create(
+        distinct_id="same-timestamp-higher-id",
+        event_name="page_view",
+        timestamp=shared_timestamp,
+    )
+
+    first_page = client.get("/api/events?limit=1")
+    second_page = client.get(
+        "/api/events",
+        data={
+            "limit": 5,
+            "before": (
+                f"{same_timestamp_higher_id.timestamp.isoformat()},"
+                f"{same_timestamp_higher_id.id}"
+            ),
+        },
+    )
+
+    assert first_page.status_code == 200
+    assert [event["id"] for event in first_page.json()] == [same_timestamp_higher_id.id]
+    assert second_page.status_code == 200
+    assert [event["id"] for event in second_page.json()] == [
+        same_timestamp_lower_id.id,
+        older.id,
+    ]
+
+
+@pytest.mark.django_db
+def test_events_endpoint_rejects_invalid_before_cursor(client):
+    response = client.get("/api/events?before=not-a-cursor")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "before cursor must be ISO 8601 timestamp or ISO 8601 timestamp,id"
+    )
 
 
 @pytest.mark.django_db
@@ -182,3 +234,18 @@ def test_readiness_reports_dependency_status(client):
     assert response.status_code == 200
     assert response.json()["database"] == "ok"
     assert response.json()["cache"] == "ok"
+
+
+@pytest.mark.django_db
+def test_readiness_returns_503_when_dependencies_are_degraded(client):
+    degraded_status = HealthStatusResponse(status="degraded", database="error", cache="ok")
+
+    with patch("core.api.events.get_readiness_status", return_value=degraded_status):
+        response = client.get("/api/health/ready")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "degraded",
+        "database": "error",
+        "cache": "ok",
+    }

@@ -2,10 +2,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from ninja import ModelSchema, Schema
-from pydantic import Field
-
-from core.models import Event
+from ninja import Schema
+from pydantic import ConfigDict, Field
 
 
 class EventCaptureSchema(Schema):
@@ -20,23 +18,19 @@ class EventBatchCaptureSchema(Schema):
     events: list[EventCaptureSchema]
 
 
-class EventResponseSchema(ModelSchema):
-    uuid: str
+class EventResponseSchema(Schema):
+    model_config = ConfigDict(from_attributes=True)
 
-    class Meta:
-        model = Event
-        fields = [
-            "id",
-            "distinct_id",
-            "event_name",
-            "properties",
-            "timestamp",
-            "uuid",
-            "created_at",
-        ]
+    id: int
+    distinct_id: str
+    event_name: str
+    properties: dict[str, Any]
+    timestamp: datetime
+    uuid: str
+    created_at: datetime
 
     @staticmethod
-    def resolve_uuid(obj: Event) -> str:
+    def resolve_uuid(obj: Any) -> str:
         return str(obj.uuid)
 
 

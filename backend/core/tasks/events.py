@@ -30,39 +30,32 @@ def _parse_timestamp(raw_value: Any):
     return parsed
 
 
-@shared_task(
-    bind=True,
-    autoretry_for=(OperationalError,),
-    retry_backoff=True,
-    retry_jitter=True,
-    retry_kwargs={"max_retries": 5},
-)
-def process_event_batch_task(self, events_data: list[dict[str, Any]]) -> int:
+def _build_event(event_data: dict[str, Any]) -> Event:
+    distinct_id = event_data.get("distinct_id")
+    event_name = event_data.get("event_name")
+    event_uuid = event_data.get("event_uuid") or event_data.get("uuid")
+
+    if not distinct_id:
+        raise ValueError("Missing required field: 'distinct_id'")
+    if not event_name:
+        raise ValueError("Missing required field: 'event_name'")
+    if not event_uuid:
+        raise ValueError("Missing required field: 'event_uuid'")
+
+    return Event(
+        distinct_id=distinct_id,
+        event_name=event_name,
+        properties=event_data.get("properties", {}),
+        timestamp=_parse_timestamp(event_data.get("timestamp")),
+        uuid=UUID(str(event_uuid)),
+    )
+
+
+def _persist_events(events_data: list[dict[str, Any]]) -> int:
     if not events_data:
         return 0
 
-    events_to_create = []
-    for event_data in events_data:
-        distinct_id = event_data.get("distinct_id")
-        event_name = event_data.get("event_name")
-        event_uuid = event_data.get("event_uuid") or event_data.get("uuid")
-
-        if not distinct_id:
-            raise ValueError("Missing required field: 'distinct_id'")
-        if not event_name:
-            raise ValueError("Missing required field: 'event_name'")
-        if not event_uuid:
-            raise ValueError("Missing required field: 'event_uuid'")
-
-        events_to_create.append(
-            Event(
-                distinct_id=distinct_id,
-                event_name=event_name,
-                properties=event_data.get("properties", {}),
-                timestamp=_parse_timestamp(event_data.get("timestamp")),
-                uuid=UUID(str(event_uuid)),
-            )
-        )
+    events_to_create = [_build_event(event_data) for event_data in events_data]
 
     Event.objects.bulk_create(
         events_to_create,
@@ -70,14 +63,6 @@ def process_event_batch_task(self, events_data: list[dict[str, Any]]) -> int:
         ignore_conflicts=True,
     )
 
-    logger.info(
-        "processed_event_batch",
-        extra={
-            "task_name": self.name,
-            "task_id": self.request.id,
-            "event_count": len(events_to_create),
-        },
-    )
     return len(events_to_create)
 
 
@@ -88,8 +73,38 @@ def process_event_batch_task(self, events_data: list[dict[str, Any]]) -> int:
     retry_jitter=True,
     retry_kwargs={"max_retries": 5},
 )
+def process_event_batch_task(self, events_data: list[dict[str, Any]]) -> int:
+    processed_count = _persist_events(events_data)
+
+    logger.info(
+        "processed_event_batch",
+        extra={
+            "task_name": self.name,
+            "task_id": self.request.id,
+            "event_count": processed_count,
+        },
+    )
+    return processed_count
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(OperationalError,),
+    retry_backoff=True,
+    retry_jitter=True,
+    retry_kwargs={"max_retries": 5},
+)
 def process_event_task(self, event_data: dict[str, Any]) -> int:
-    return process_event_batch_task.run([event_data])
+    processed_count = _persist_events([event_data])
+    logger.info(
+        "processed_event",
+        extra={
+            "task_name": self.name,
+            "task_id": self.request.id,
+            "event_count": processed_count,
+        },
+    )
+    return processed_count
 
 
 @shared_task(

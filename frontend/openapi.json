@@ -85,7 +85,6 @@
             "schema": {
               "anyOf": [
                 {
-                  "format": "date-time",
                   "type": "string"
                 },
                 {
@@ -176,6 +175,16 @@
         "responses": {
           "200": {
             "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatusResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -284,47 +293,30 @@
       },
       "EventResponseSchema": {
         "properties": {
-          "uuid": {
-            "title": "Uuid",
-            "type": "string"
-          },
           "id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "ID"
+            "title": "Id",
+            "type": "integer"
           },
           "distinct_id": {
-            "description": "User ID",
-            "maxLength": 255,
             "title": "Distinct Id",
             "type": "string"
           },
           "event_name": {
-            "maxLength": 255,
             "title": "Event Name",
             "type": "string"
           },
           "properties": {
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Properties",
-            "description": "Flexible JSONB field for event properties"
+            "type": "object",
+            "additionalProperties": true,
+            "title": "Properties"
           },
           "timestamp": {
             "format": "date-time",
             "title": "Timestamp",
+            "type": "string"
+          },
+          "uuid": {
+            "title": "Uuid",
             "type": "string"
           },
           "created_at": {
@@ -334,9 +326,12 @@
           }
         },
         "required": [
-          "uuid",
+          "id",
           "distinct_id",
           "event_name",
+          "properties",
+          "timestamp",
+          "uuid",
           "created_at"
         ],
         "title": "EventResponseSchema",
