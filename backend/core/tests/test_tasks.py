@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 from uuid import uuid4
 
 import pytest
@@ -52,3 +52,48 @@ def test_process_event_task_persists_single_event():
     assert stored_event.event_name == "checkout_success"
     assert stored_event.properties == {"total": 42}
     assert str(stored_event.uuid) == event_uuid
+
+
+@pytest.mark.django_db
+def test_process_event_task_converts_date_timestamp_to_start_of_day():
+    event_uuid = str(uuid4())
+    event_date = date(2026, 1, 1)
+
+    process_event_task.run(
+        {
+            "distinct_id": "user-789",
+            "event_name": "daily_summary",
+            "event_uuid": event_uuid,
+            "timestamp": event_date,
+        }
+    )
+
+    stored_event = Event.objects.get()
+    expected_timestamp = timezone.make_aware(
+        timezone.datetime.combine(event_date, timezone.datetime.min.time()),
+        timezone.get_current_timezone(),
+    )
+    assert stored_event.timestamp == expected_timestamp
+
+
+@pytest.mark.django_db
+def test_process_event_task_rejects_non_datetime_isoformat_objects():
+    class FakeTimestamp:
+        def isoformat(self) -> str:
+            return "2026-01-01"
+
+        def __str__(self) -> str:
+            return self.isoformat()
+
+    with pytest.raises(
+        ValueError,
+        match="timestamp must be a datetime, date, or ISO 8601 datetime string",
+    ):
+        process_event_task.run(
+            {
+                "distinct_id": "user-999",
+                "event_name": "invalid_timestamp",
+                "event_uuid": str(uuid4()),
+                "timestamp": FakeTimestamp(),
+            }
+        )

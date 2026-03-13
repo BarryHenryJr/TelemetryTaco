@@ -4,9 +4,10 @@ import queue
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -34,6 +35,21 @@ class QueuedEvent:
         }
 
 
+def _normalize_base_url(base_url: str) -> str:
+    normalized = base_url.strip()
+    if not normalized:
+        raise ValueError("base_url must be a non-empty http:// or https:// URL")
+
+    if "://" not in normalized:
+        normalized = f"http://{normalized}"
+
+    parsed = urllib.parse.urlparse(normalized)
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("base_url must be an absolute http:// or https:// URL")
+
+    return normalized.rstrip("/")
+
+
 class TelemetryTaco:
     def __init__(
         self,
@@ -47,7 +63,7 @@ class TelemetryTaco:
         queue_full_policy: QueueFullPolicy = "drop_newest",
         _start_worker: bool = True,
     ):
-        self.base_url = base_url.rstrip("/")
+        self.base_url = _normalize_base_url(base_url)
         self.batch_url = f"{self.base_url}/api/capture/batch"
         self.batch_size = batch_size
         self.flush_interval = flush_interval
@@ -56,8 +72,10 @@ class TelemetryTaco:
         self.queue_full_policy = queue_full_policy
 
         self._queue: queue.Queue[QueuedEvent | object] = queue.Queue(maxsize=max_queue_size)
+        self._state_lock = threading.Lock()
         self._flush_requested = threading.Event()
         self._closed = False
+        self._closing = False
         self._worker = None
         if _start_worker:
             self._worker = threading.Thread(
@@ -73,17 +91,18 @@ class TelemetryTaco:
         event_name: str,
         properties: dict[str, Any] | None = None,
     ) -> None:
-        if self._closed:
-            raise RuntimeError("TelemetryTaco client is closed")
+        with self._state_lock:
+            if self._closed or self._closing:
+                raise RuntimeError("TelemetryTaco client is closed")
 
-        payload = QueuedEvent(
-            distinct_id=distinct_id,
-            event_name=event_name,
-            properties=properties or {},
-            event_uuid=str(uuid4()),
-            sent_at=datetime.now(timezone.utc).isoformat(),
-        )
-        self._enqueue(payload)
+            payload = QueuedEvent(
+                distinct_id=distinct_id,
+                event_name=event_name,
+                properties=properties or {},
+                event_uuid=str(uuid4()),
+                sent_at=datetime.now(UTC).isoformat(),
+            )
+            self._enqueue(payload)
 
     def flush(self, timeout: float | None = None) -> None:
         deadline = None if timeout in (None, 0) else time.monotonic() + timeout
@@ -99,14 +118,24 @@ class TelemetryTaco:
         self._flush_requested.clear()
 
     def close(self, timeout: float | None = None) -> None:
-        if self._closed:
-            return
+        with self._state_lock:
+            if self._closed or self._closing:
+                return
+            self._closing = True
 
-        self.flush(timeout=timeout)
-        self._closed = True
-        self._queue.put(_STOP)
-        if self._worker is not None:
-            self._worker.join(timeout=timeout)
+        try:
+            self.flush(timeout=timeout)
+            self._queue.put(_STOP)
+            if self._worker is not None:
+                self._worker.join(timeout=timeout)
+        except Exception:
+            with self._state_lock:
+                self._closing = False
+            raise
+
+        with self._state_lock:
+            self._closed = True
+            self._closing = False
 
     def __enter__(self) -> "TelemetryTaco":
         return self
@@ -123,14 +152,27 @@ class TelemetryTaco:
             self._queue.put_nowait(payload)
         except queue.Full:
             if self.queue_full_policy == "drop_oldest":
-                dropped = self._queue.get_nowait()
-                if dropped is not _STOP:
-                    self._queue.task_done()
-                self._queue.put_nowait(payload)
-                logger.warning("TelemetryTaco queue full; dropped oldest event.")
-                return
+                if self._replace_oldest_queued_event(payload):
+                    logger.warning("TelemetryTaco queue full; dropped oldest event.")
+                    return
+                try:
+                    self._queue.put_nowait(payload)
+                    return
+                except queue.Full:
+                    logger.warning("TelemetryTaco queue full; dropped newest event.")
+                    return
 
             logger.warning("TelemetryTaco queue full; dropped newest event.")
+
+    def _replace_oldest_queued_event(self, payload: QueuedEvent) -> bool:
+        with self._queue.mutex:
+            pending_items = self._queue.queue
+            if not pending_items or any(item is _STOP for item in pending_items):
+                return False
+
+            pending_items.popleft()
+            pending_items.append(payload)
+            return True
 
     def _run_worker(self) -> None:
         batch: list[QueuedEvent] = []
@@ -193,6 +235,11 @@ class TelemetryTaco:
 
         try:
             self._send_batch(batch)
+        except Exception:
+            logger.exception(
+                "TelemetryTaco worker failed to send event batch; dropping %s event(s).",
+                len(batch),
+            )
         finally:
             for _ in batch:
                 self._queue.task_done()

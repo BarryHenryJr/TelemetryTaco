@@ -1,3 +1,4 @@
+from datetime import date, datetime, time
 from typing import Any
 from uuid import UUID
 
@@ -17,10 +18,19 @@ def _parse_timestamp(raw_value: Any):
     if raw_value is None:
         return timezone.now()
 
-    if hasattr(raw_value, "isoformat"):
+    if isinstance(raw_value, datetime):
+        if timezone.is_naive(raw_value):
+            return timezone.make_aware(raw_value, timezone.get_current_timezone())
         return raw_value
 
-    parsed = parse_datetime(str(raw_value))
+    if isinstance(raw_value, date):
+        parsed = datetime.combine(raw_value, time.min)
+        return timezone.make_aware(parsed, timezone.get_current_timezone())
+
+    if not isinstance(raw_value, str):
+        raise ValueError("timestamp must be a datetime, date, or ISO 8601 datetime string")
+
+    parsed = parse_datetime(raw_value)
     if parsed is None:
         raise ValueError("timestamp must be an ISO 8601 datetime")
 
