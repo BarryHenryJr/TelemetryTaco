@@ -10,6 +10,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
+POETRY_CACHE_DIR="${POETRY_CACHE_DIR:-/tmp/pypoetry-cache}"
 
 echo -e "${GREEN}🌮 Seeding TelemetryTaco Database${NC}\n"
 
@@ -29,7 +30,7 @@ fi
 if [ ! -d "backend/.venv" ] && [ ! -f "backend/poetry.lock" ]; then
     echo -e "${YELLOW}⚠️  Backend dependencies not installed. Installing...${NC}"
     cd backend
-    poetry install --no-interaction
+    POETRY_CACHE_DIR="${POETRY_CACHE_DIR}" poetry install --no-interaction
     cd ..
 fi
 
@@ -45,7 +46,7 @@ fi
 # Run the seed command with all passed arguments
 echo -e "${YELLOW}📊 Running seed_events command...${NC}"
 cd backend
-poetry run python manage.py seed_events "$@"
+POETRY_CACHE_DIR="${POETRY_CACHE_DIR}" poetry run python manage.py seed_events "$@"
 cd ..
 
 echo -e "\n${GREEN}✅ Database seeding completed${NC}"

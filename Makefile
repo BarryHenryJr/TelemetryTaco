@@ -1,4 +1,4 @@
-.PHONY: help start stop dev services migrate test clean
+.PHONY: help start stop dev services migrate test clean validate
 
 help: ## Show this help message
 	@echo "TelemetryTaco Development Commands"
@@ -67,9 +67,10 @@ clean: stop ## Stop services and clean up logs
 	@echo "✅ Cleaned up"
 
 test: ## Run tests
-	@echo "🧪 Running tests..."
-	cd backend && poetry run python manage.py test
-	cd frontend && pnpm test || true
+	@pnpm test
+
+validate: ## Run backend, frontend, and SDK validation
+	@pnpm validate:all
 
 seed: ## Seed database with historical event data
 	@echo "📊 Seeding database..."

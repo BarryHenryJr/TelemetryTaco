@@ -6,26 +6,26 @@
 
 @layer base {
   :root {
-    --background: 210 10% 18%; /* #2d2d2d */
-    --foreground: 0 0% 98%;
-    --card: 217 11% 20%; /* #1F2937 */
-    --card-foreground: 0 0% 98%;
-    --popover: 217 11% 20%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 15 100% 48%; /* #f54e00 */
-    --primary-foreground: 0 0% 98%;
-    --secondary: 48 100% 50%; /* #ffcc00 */
-    --secondary-foreground: 0 0% 9%;
-    --muted: 217 11% 20%;
-    --muted-foreground: 0 0% 64%;
-    --accent: 217 11% 20%;
-    --accent-foreground: 0 0% 98%;
+    --background: 220 28% 7%;
+    --foreground: 35 25% 95%;
+    --card: 224 22% 12%;
+    --card-foreground: 35 25% 95%;
+    --popover: 224 22% 12%;
+    --popover-foreground: 35 25% 95%;
+    --primary: 23 100% 58%;
+    --primary-foreground: 220 28% 7%;
+    --secondary: 42 95% 63%;
+    --secondary-foreground: 220 28% 7%;
+    --muted: 223 16% 18%;
+    --muted-foreground: 215 12% 68%;
+    --accent: 223 16% 18%;
+    --accent-foreground: 35 25% 95%;
     --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 217 11% 30%;
-    --input: 217 11% 30%;
-    --ring: 15 100% 48%;
-    --radius: 0.5rem;
+    --destructive-foreground: 35 25% 95%;
+    --border: 224 12% 24%;
+    --input: 224 12% 24%;
+    --ring: 23 100% 58%;
+    --radius: 1rem;
   }
 }
 
@@ -33,11 +33,17 @@
   * {
     @apply border-border;
   }
+
+  html {
+    color-scheme: dark;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: 'JetBrains Mono', 'Courier New', monospace;
+    min-height: 100vh;
   }
-  
+
   .font-mono {
     font-family: 'JetBrains Mono', 'Courier New', monospace;
   }

@@ -10,6 +10,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
+POETRY_CACHE_DIR="${POETRY_CACHE_DIR:-/tmp/pypoetry-cache}"
 
 echo -e "${YELLOW}🔄 Restarting Django backend server...${NC}\n"
 
@@ -28,7 +29,7 @@ fi
 # Start backend in background
 echo -e "${YELLOW}   Starting new backend server...${NC}"
 cd backend
-poetry run python manage.py runserver > ../.backend.log 2>&1 &
+POETRY_CACHE_DIR="${POETRY_CACHE_DIR}" poetry run python manage.py runserver > ../.backend.log 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > ../.backend.pid
 cd ..

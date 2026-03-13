@@ -24,11 +24,17 @@ export default defineConfig({
       },
     },
   },
+  test: {
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.ts',
+    css: true,
+  },
   build: {
     rollupOptions: {
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
+          'query-vendor': ['@tanstack/react-query'],
           'recharts-vendor': ['recharts'],
           'ui-vendor': ['class-variance-authority', 'clsx', 'tailwind-merge', 'lucide-react'],
         },
@@ -37,4 +43,3 @@ export default defineConfig({
     chunkSizeWarningLimit: 600,
   },
 })
-

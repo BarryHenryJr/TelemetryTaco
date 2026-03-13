@@ -1,0 +1,384 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TelemetryTaco API",
+    "version": "1.1.0",
+    "description": ""
+  },
+  "paths": {
+    "/api/capture": {
+      "post": {
+        "operationId": "core_api_events_capture_event",
+        "summary": "Capture Event",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventCaptureSchema"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/capture/batch": {
+      "post": {
+        "operationId": "core_api_events_capture_event_batch",
+        "summary": "Capture Event Batch",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchStatusResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventBatchCaptureSchema"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "operationId": "core_api_events_list_events",
+        "summary": "List Events",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 100,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EventResponseSchema"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/insights": {
+      "get": {
+        "operationId": "core_api_events_get_event_insights",
+        "summary": "Get Event Insights",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lookback_minutes",
+            "schema": {
+              "default": 60,
+              "title": "Lookback Minutes",
+              "type": "integer"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InsightDataPoint"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health/live": {
+      "get": {
+        "operationId": "core_api_events_liveness",
+        "summary": "Liveness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health/ready": {
+      "get": {
+        "operationId": "core_api_events_readiness",
+        "summary": "Readiness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatusResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "StatusResponse": {
+        "properties": {
+          "status": {
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "StatusResponse",
+        "type": "object"
+      },
+      "EventCaptureSchema": {
+        "properties": {
+          "distinct_id": {
+            "title": "Distinct Id",
+            "type": "string"
+          },
+          "event_name": {
+            "title": "Event Name",
+            "type": "string"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": true,
+            "title": "Properties"
+          },
+          "event_uuid": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Uuid"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          }
+        },
+        "required": [
+          "distinct_id",
+          "event_name"
+        ],
+        "title": "EventCaptureSchema",
+        "type": "object"
+      },
+      "BatchStatusResponse": {
+        "properties": {
+          "status": {
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          },
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accepted"
+        ],
+        "title": "BatchStatusResponse",
+        "type": "object"
+      },
+      "EventBatchCaptureSchema": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/EventCaptureSchema"
+            },
+            "title": "Events",
+            "type": "array"
+          }
+        },
+        "required": [
+          "events"
+        ],
+        "title": "EventBatchCaptureSchema",
+        "type": "object"
+      },
+      "EventResponseSchema": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "distinct_id": {
+            "title": "Distinct Id",
+            "type": "string"
+          },
+          "event_name": {
+            "title": "Event Name",
+            "type": "string"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": true,
+            "title": "Properties"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "uuid": {
+            "title": "Uuid",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "distinct_id",
+          "event_name",
+          "properties",
+          "timestamp",
+          "uuid",
+          "created_at"
+        ],
+        "title": "EventResponseSchema",
+        "type": "object"
+      },
+      "InsightDataPoint": {
+        "properties": {
+          "time": {
+            "title": "Time",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "time",
+          "count"
+        ],
+        "title": "InsightDataPoint",
+        "type": "object"
+      },
+      "HealthStatusResponse": {
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "database": {
+            "title": "Database",
+            "type": "string"
+          },
+          "cache": {
+            "title": "Cache",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "database",
+          "cache"
+        ],
+        "title": "HealthStatusResponse",
+        "type": "object"
+      }
+    }
+  },
+  "servers": []
+}

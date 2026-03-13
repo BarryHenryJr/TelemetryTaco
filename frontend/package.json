@@ -8,10 +8,14 @@
     "build": "tsc && vite build",
     "lint": "eslint . --max-warnings 0",
     "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "generate:api-types": "openapi-typescript ./openapi.json -o ./src/shared/api/generated.ts",
     "preview": "vite preview",
-    "validate:all": "pnpm install && pnpm lint && pnpm type-check"
+    "validate:all": "pnpm lint && pnpm type-check && pnpm test && pnpm build"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.76.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "class-variance-authority": "^0.7.0",
@@ -22,6 +26,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
@@ -32,11 +38,13 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.15",
     "globals": "^15.0.0",
+    "jsdom": "^26.1.0",
+    "openapi-typescript": "^7.8.0",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.3.3",
-    "vite": "^5.0.8"
+    "vite": "^5.0.8",
+    "vitest": "^3.1.1"
   }
 }
-

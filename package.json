@@ -18,20 +18,24 @@
     "seed:clean": "bash seed.sh --clean",
     "build": "pnpm --filter ./frontend build",
     "build:frontend": "pnpm --filter ./frontend build",
+    "generate:api-types": "cd backend && DJANGO_SETTINGS_MODULE=telemetry_taco.settings.test poetry run python manage.py export_openapi_schema ../frontend/openapi.json && cd ../frontend && pnpm generate:api-types",
     "lint": "pnpm --filter ./frontend lint",
     "lint:frontend": "pnpm --filter ./frontend lint",
     "lint:backend": "cd backend && poetry run ruff check .",
     "format:backend": "cd backend && poetry run ruff format .",
     "format:check:backend": "cd backend && poetry run ruff format --check .",
-    "check:backend": "cd backend && poetry run python manage.py check",
+    "check:backend": "cd backend && DJANGO_SETTINGS_MODULE=telemetry_taco.settings.test poetry run python manage.py check",
+    "test": "pnpm test:backend && pnpm test:frontend && pnpm test:sdk",
+    "test:backend": "cd backend && poetry run pytest",
+    "test:frontend": "pnpm --filter ./frontend test",
+    "test:sdk": "cd sdk && PYTEST_PYTHON=$(poetry -C ../backend run python -c 'import sys; print(sys.executable)') && \"$PYTEST_PYTHON\" -m pytest tests",
     "security:backend": "cd backend && poetry run bandit -r . -c bandit.yaml",
     "security:backend:json": "cd backend && poetry run bandit -r . -f json -o bandit-report.json -c bandit.yaml",
-    "validate:backend": "pnpm lint:backend && pnpm format:check:backend && pnpm check:backend",
-    "validate:frontend": "pnpm --filter ./frontend lint && pnpm --filter ./frontend type-check",
-    "validate:all": "pnpm validate:backend && pnpm validate:frontend"
+    "validate:backend": "pnpm lint:backend && pnpm format:check:backend && pnpm check:backend && pnpm test:backend",
+    "validate:frontend": "pnpm generate:api-types && pnpm --filter ./frontend lint && pnpm --filter ./frontend type-check && pnpm --filter ./frontend test && pnpm --filter ./frontend build",
+    "validate:all": "pnpm validate:backend && pnpm validate:frontend && pnpm test:sdk"
   },
   "devDependencies": {
     "typescript": "^5.3.3"
   }
 }
-
