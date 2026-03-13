@@ -20,8 +20,7 @@ def list_recent_events(*, limit: int, before: EventCursor | None = None) -> list
             queryset = queryset.filter(timestamp__lt=before_timestamp)
         else:
             queryset = queryset.filter(
-                Q(timestamp__lt=before_timestamp)
-                | Q(timestamp=before_timestamp, id__lt=before_id)
+                Q(timestamp__lt=before_timestamp) | Q(timestamp=before_timestamp, id__lt=before_id)
             )
 
     return list(queryset[:bounded_limit])
