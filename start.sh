@@ -11,6 +11,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
+POETRY_CACHE_DIR="${POETRY_CACHE_DIR:-/tmp/pypoetry-cache}"
 
 echo -e "${GREEN}🌮 Starting TelemetryTaco Development Environment${NC}\n"
 
@@ -84,10 +85,10 @@ if command -v poetry &> /dev/null; then
     # Check if poetry.lock exists, if not or if pyproject.toml is newer, install
     if [ ! -f "poetry.lock" ] || [ "pyproject.toml" -nt "poetry.lock" ]; then
         echo -e "${YELLOW}   Installing dependencies (this may take a moment)...${NC}"
-        poetry install --no-interaction
+        POETRY_CACHE_DIR="${POETRY_CACHE_DIR}" poetry install --no-interaction
     else
         # Just sync to ensure everything is installed
-        poetry install --no-interaction --sync
+        POETRY_CACHE_DIR="${POETRY_CACHE_DIR}" poetry install --no-interaction --sync
     fi
 else
     echo -e "${RED}❌ Poetry not found. Please install Poetry: https://python-poetry.org/docs/#installation${NC}"
@@ -98,7 +99,7 @@ cd ..
 # Step 4: Run migrations
 echo -e "${YELLOW}🔄 Running database migrations...${NC}"
 cd backend
-poetry run python manage.py migrate --noinput
+POETRY_CACHE_DIR="${POETRY_CACHE_DIR}" poetry run python manage.py migrate --noinput
 cd ..
 
 # Step 5: Start services
@@ -117,7 +118,7 @@ CELERY_LOG_FILE="${PROJECT_ROOT}/.celery.log"
 # Start backend in background
 echo -e "${GREEN}▶️  Starting Django backend server...${NC}"
 cd backend
-poetry run python manage.py runserver > "${BACKEND_LOG_FILE}" 2>&1 &
+POETRY_CACHE_DIR="${POETRY_CACHE_DIR}" poetry run python manage.py runserver > "${BACKEND_LOG_FILE}" 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > "${BACKEND_PID_FILE}"
 cd ..
@@ -125,7 +126,7 @@ cd ..
 # Start Celery worker in background
 echo -e "${GREEN}▶️  Starting Celery worker...${NC}"
 cd backend
-poetry run celery -A core worker --loglevel=info > "${CELERY_LOG_FILE}" 2>&1 &
+POETRY_CACHE_DIR="${POETRY_CACHE_DIR}" poetry run celery -A core worker --loglevel=info > "${CELERY_LOG_FILE}" 2>&1 &
 CELERY_PID=$!
 echo $CELERY_PID > "${CELERY_PID_FILE}"
 cd ..
