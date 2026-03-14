@@ -1,140 +1,75 @@
 # TelemetryTaco
 
-TelemetryTaco is a lightweight self-hosted telemetry MVP built around three concrete workflows:
+<div align="center">
 
-- capture single events or batches
-- inspect recent events in a live dashboard
-- query minute-level insight aggregates over a recent lookback window
+Lightweight, self-hosted telemetry for queued event ingestion, live event inspection, and minute-level insights.
 
-The codebase now targets a strong single-project MVP rather than a broad PostHog clone. The refactor in this repo keeps the current API contract intact while adding real batching, idempotency, generated frontend types, tests, and a cleaner developer workflow.
+[![CI](https://github.com/Agile-Flimflam/TelemetryTaco/actions/workflows/cicd.yml/badge.svg)](https://github.com/Agile-Flimflam/TelemetryTaco/actions/workflows/cicd.yml)
+![Python 3.11-3.13](https://img.shields.io/badge/python-3.11--3.13-3776AB?logo=python&logoColor=white)
+![Django 5](https://img.shields.io/badge/django-5.0-092E20?logo=django&logoColor=white)
+![React 18 + Vite](https://img.shields.io/badge/react-18%20%2B%20vite-149ECA?logo=react&logoColor=white)
+![PostgreSQL + Redis](https://img.shields.io/badge/postgresql%20%2B%20redis-runtime-3B82F6)
 
-## Current Architecture
+[Quick Start](#quick-start) • [Architecture](#architecture) • [Usage](#usage) • [Repo](#repo)
 
-```text
-Python SDK / API clients
-        |
-        v
-  Django + Django Ninja
-        |
-        v
- Celery batch task queue
-        |
-        v
- PostgreSQL event store
-        |
-        v
- React dashboard (React Query + generated OpenAPI types)
+</div>
+
+## Why It Exists
+
+- Queued batch ingestion with idempotent event persistence.
+- Live recent-event streaming plus minute-level insight aggregates.
+- OpenAPI-generated frontend types across a tested monorepo.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A[Python SDK / API clients] --> B[Django + Django Ninja API]
+    B --> C[Celery worker]
+    B <--> D[(Redis cache)]
+    C --> E[(PostgreSQL event store)]
+    F[React dashboard] <--> B
 ```
 
-### Runtime responsibilities
+```mermaid
+sequenceDiagram
+    participant Client as SDK / caller
+    participant API as Django API
+    participant Worker as Celery worker
+    participant DB as PostgreSQL
+    participant UI as React dashboard
 
-- `backend/`: API surface, ingestion service, selectors, Celery tasks, retention commands
-- `frontend/`: dashboard UI, React Query polling, OpenAPI-generated TypeScript types
-- `sdk/`: queue-backed Python client that batches to `/api/capture/batch`
-
-## What Exists Today
-
-- `POST /api/capture`: additive single-event capture endpoint
-- `POST /api/capture/batch`: batch capture endpoint used by the SDK
-- `GET /api/events`: bounded recent-event feed with optional `before` cursor
-- `GET /api/insights`: bounded minute-level aggregate series
-- `GET /api/health/live` and `GET /api/health/ready`
-- event idempotency via caller-supplied `event_uuid`
-- OpenAPI export and generated frontend types
-- backend pytest coverage, frontend Vitest coverage, and SDK tests
+    Client->>API: POST /api/capture or /api/capture/batch
+    API->>Worker: enqueue normalized event batch
+    Worker->>DB: persist unique events
+    UI->>API: GET /api/events
+    UI->>API: GET /api/insights
+    API->>UI: recent events + minute buckets
+```
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.11, 3.12, or 3.13
-- Poetry
-- Node.js 18+ and `pnpm`
-- Docker and Docker Compose
-
-### Local development
-
-1. Copy backend environment defaults:
+Prereqs: Python 3.11-3.13, Poetry, pnpm, Docker.
 
 ```bash
+pnpm install
 cp backend/.env.example backend/.env
+pnpm services
+pnpm dev
+# optional
+pnpm seed
 ```
 
-2. Start the database and Redis:
+Local endpoints:
 
-```bash
-docker-compose up -d db redis
-```
+- Frontend: `http://localhost:5173`
+- API: `http://localhost:8000`
 
-3. Start the application stack:
+`pnpm dev` runs the Django API, Celery worker, and Vite frontend. Seed data is available through `pnpm seed` or `pnpm seed:clean`.
 
-```bash
-./start.sh
-```
+## Usage
 
-That script will install backend dependencies, run migrations, start Django and Celery in the background, and run the frontend in the foreground.
-
-### Useful commands
-
-```bash
-pnpm generate:api-types   # export backend OpenAPI and regenerate frontend types
-pnpm validate:backend     # Ruff + format check + Django check + backend pytest
-pnpm validate:frontend    # OpenAPI type generation + lint + type-check + Vitest
-pnpm validate:all         # backend + frontend + SDK validation
-pnpm test                 # backend + frontend + SDK tests
-pnpm seed                 # seed realistic sample events
-pnpm seed:clean           # wipe and reseed events
-```
-
-## Backend Notes
-
-The backend defaults to development settings via `telemetry_taco.settings`.
-
-Available settings modules:
-
-- `telemetry_taco.settings.development`
-- `telemetry_taco.settings.test`
-- `telemetry_taco.settings.production`
-
-Important environment variables:
-
-- `DATABASE_URL`
-- `REDIS_URL`
-- `CACHE_URL`
-- `MAX_CAPTURE_BATCH_SIZE`
-- `MAX_EVENTS_LIMIT`
-- `MAX_INSIGHTS_LOOKBACK_MINUTES`
-- `EVENT_RETENTION_DAYS`
-
-Retention cleanup is exposed as a management command:
-
-```bash
-cd backend
-poetry run python manage.py purge_expired_events
-```
-
-OpenAPI export is also explicit:
-
-```bash
-cd backend
-DJANGO_SETTINGS_MODULE=telemetry_taco.settings.test poetry run python manage.py export_openapi_schema ../frontend/openapi.json
-```
-
-## Frontend Notes
-
-The dashboard is a Vite React app that uses:
-
-- React Query for polling, deduping, and error handling
-- lazy loading for the chart surface
-- generated API types from `frontend/openapi.json`
-
-If the backend contract changes, regenerate types before committing:
-
-```bash
-pnpm generate:api-types
-```
-
-## SDK Example
+Python SDK:
 
 ```python
 from telemetry_taco import TelemetryTaco
@@ -147,68 +82,45 @@ with TelemetryTaco(base_url="http://localhost:8000") as client:
     )
 ```
 
-The SDK batches events in a background worker, attaches `event_uuid` and `sent_at`, and flushes automatically when the context manager exits.
+Batch capture:
 
-## API Summary
-
-### `POST /api/capture`
-
-```json
-{
-  "distinct_id": "user-123",
-  "event_name": "page_view",
-  "properties": {
-    "path": "/"
-  },
-  "event_uuid": "optional-uuid",
-  "sent_at": "YYYY-MM-DDTHH:MM:SSZ"
-}
+```bash
+curl -X POST http://localhost:8000/api/capture/batch \
+  -H 'Content-Type: application/json' \
+  -d '{"events":[{"distinct_id":"user-123","event_name":"page_view","properties":{"path":"/"}}]}'
 ```
 
-Response:
+API surface:
 
-```json
-{
-  "status": "ok"
-}
-```
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/capture` | Capture one event |
+| `POST /api/capture/batch` | Capture a batch of events |
+| `GET /api/events` | Read the recent event feed |
+| `GET /api/insights` | Read minute-level aggregates |
+| `GET /api/health/live` | Liveness probe |
+| `GET /api/health/ready` | Database and cache readiness |
 
-### `POST /api/capture/batch`
+## Repo
 
-```json
-{
-  "events": [
-    {
-      "distinct_id": "user-123",
-      "event_name": "page_view"
-    }
-  ]
-}
-```
+| Path | Responsibility |
+| --- | --- |
+| `backend/` | Django API, ingestion, Celery tasks, retention, tests |
+| `frontend/` | React dashboard, React Query polling, generated API types |
+| `sdk/` | Python client with background batching and flush-on-close |
 
-### `GET /api/events?limit=100&before=YYYY-MM-DDTHH:MM:SSZ,EVENT_ID`
+Useful commands:
 
-Returns recent events ordered by `timestamp desc, id desc`.
-For stable pagination, set `before` to the last event's `timestamp,id` pair.
-Plain ISO 8601 timestamps are still accepted for backward compatibility.
+| Command | Purpose |
+| --- | --- |
+| `pnpm generate:api-types` | Export OpenAPI and regenerate frontend types |
+| `pnpm validate:all` | Run backend, frontend, and SDK validation |
+| `pnpm test` | Run backend, frontend, and SDK tests |
+| `pnpm seed` | Seed realistic sample events |
+| `pnpm stop` | Stop local app processes |
 
-### `GET /api/insights?lookback_minutes=60`
+Deeper backend setup lives in [`backend/SETUP.md`](backend/SETUP.md).
 
-Returns minute buckets shaped like:
+## Non-Goals
 
-```json
-[
-  { "time": "18:04", "count": 4 }
-]
-```
-
-## Developer Workflow
-
-- Use `pnpm` at the repo root for day-to-day commands.
-- Treat `backend/poetry.lock` and `pnpm-lock.yaml` as the dependency source of truth.
-- Do not reintroduce `npm` lockfiles or a standalone backend `requirements.txt`.
-- Keep frontend API types generated from the backend schema, not hand-maintained.
-
-## Status
-
-TelemetryTaco is intentionally not solving multi-tenancy, auth, cohorts, funnels, feature flags, or ClickHouse analytics yet. The current code is optimized for a maintainable ingestion-and-dashboard MVP with clean seams for future expansion.
+TelemetryTaco is intentionally not solving multi-tenancy, auth, funnels, feature flags, or warehouse-scale analytics yet. The current repo is optimized for a strong ingestion-and-dashboard MVP with clean seams for future expansion.
